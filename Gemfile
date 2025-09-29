@@ -7,7 +7,7 @@ gem "rails", "~> 7.1"
 
 # Database
 gem "pg"          # PostgreSQL driver
-gem "pgvector"    # Vector support for embeddings (RAG)
+gem "neighbor"
 
 # Background jobs
 gem "sidekiq"     # Background worker with Redis
