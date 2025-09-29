@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_29_000500) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_29_200719) do
   create_schema "auth"
   create_schema "extensions"
   create_schema "graphql"
@@ -29,6 +29,88 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_29_000500) do
   enable_extension "uuid-ossp"
   enable_extension "vector"
 
+  create_table "contacts", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "hubspot_id"
+    t.string "name"
+    t.string "email"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_contacts_on_name"
+    t.index ["user_id", "email"], name: "index_contacts_on_user_id_and_email"
+    t.index ["user_id", "hubspot_id"], name: "index_contacts_on_user_id_and_hubspot_id", unique: true
+    t.index ["user_id"], name: "index_contacts_on_user_id"
+  end
+
+  create_table "embeddings", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "kind", null: false
+    t.string "ref_id", null: false
+    t.text "chunk", null: false
+    t.vector "embedding", limit: 1536
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["embedding"], name: "index_embeddings_on_embedding_ivfflat_cosine", opclass: :vector_cosine_ops, using: :ivfflat
+    t.index ["kind"], name: "index_embeddings_on_kind"
+    t.index ["user_id", "kind", "ref_id"], name: "index_embeddings_on_user_id_and_kind_and_ref_id", unique: true
+    t.index ["user_id"], name: "index_embeddings_on_user_id"
+  end
+
+  create_table "instructions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.text "rule_text", null: false
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "is_active"], name: "index_instructions_on_user_id_and_is_active"
+    t.index ["user_id"], name: "index_instructions_on_user_id"
+  end
+
+  create_table "messages", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "source", null: false
+    t.string "ext_id", null: false
+    t.string "thread_id"
+    t.string "subject"
+    t.string "sender"
+    t.datetime "sent_at"
+    t.text "body_text"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["sent_at"], name: "index_messages_on_sent_at"
+    t.index ["thread_id"], name: "index_messages_on_thread_id"
+    t.index ["user_id", "source", "ext_id"], name: "index_messages_on_user_id_and_source_and_ext_id", unique: true
+    t.index ["user_id"], name: "index_messages_on_user_id"
+  end
+
+  create_table "notes", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "source", null: false
+    t.string "ext_id"
+    t.bigint "contact_id"
+    t.text "body_text"
+    t.datetime "created_at_ext"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_notes_on_contact_id"
+    t.index ["created_at_ext"], name: "index_notes_on_created_at_ext"
+    t.index ["user_id", "source", "ext_id"], name: "index_notes_on_user_id_and_source_and_ext_id", unique: true
+    t.index ["user_id"], name: "index_notes_on_user_id"
+  end
+
+  create_table "tasks", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "kind", null: false
+    t.text "payload_json", null: false
+    t.string "status", default: "pending", null: false
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["kind"], name: "index_tasks_on_kind"
+    t.index ["user_id", "status"], name: "index_tasks_on_user_id_and_status"
+    t.index ["user_id"], name: "index_tasks_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", null: false
     t.text "google_access_token"
@@ -45,4 +127,12 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_29_000500) do
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_users_on_email", unique: true
   end
+
+  add_foreign_key "contacts", "users"
+  add_foreign_key "embeddings", "users"
+  add_foreign_key "instructions", "users"
+  add_foreign_key "messages", "users"
+  add_foreign_key "notes", "contacts"
+  add_foreign_key "notes", "users"
+  add_foreign_key "tasks", "users"
 end
