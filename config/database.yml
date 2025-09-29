@@ -2,9 +2,9 @@
 default: &default
   adapter: postgresql
   encoding: unicode
-  url: <%= ENV.fetch("DATABASE_URL", "") %>
-  pool: 10
-  prepared_statements: false
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 10) %>
+  url: <%= ENV["DATABASE_URL"] %>
+  prepared_statements: <%= ENV.fetch("PREPARED_STATEMENTS", "false") == "true" %>
 
 development:
   <<: *default

@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Defines the root path route ("/")
-  # root "articles#index"
+  resources :embeddings, only: [:create] do
+    collection { post :nearest }
+  end
+  resources :instructions, only: [:create, :update]
+  resources :tasks, only: [:create, :update, :show, :index]
 end
