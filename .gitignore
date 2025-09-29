@@ -32,3 +32,9 @@
 
 /app/assets/builds/*
 !/app/assets/builds/.keep
+/.idea/misc.xml
+/.idea/vcs.xml
+/.idea/modules.xml
+/.idea/.gitignore
+/.idea/jump-finadvisor-agent.iml
+/.env
