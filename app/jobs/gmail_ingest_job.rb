@@ -7,8 +7,8 @@ class GmailIngestJob < ApplicationJob
     cred = Credential.find_by!(user_id: user.id, provider: "google")
 
     auth = Signet::OAuth2::Client.new(
-      client_id: ENV["GOOGLE_CLIENT_ID"],
-      client_secret: ENV["GOOGLE_CLIENT_SECRET"],
+      client_id: ENV.fetch("GOOGLE_CLIENT_ID"),
+      client_secret: ENV.fetch("GOOGLE_CLIENT_SECRET"),
       access_token: cred.access_token,
       refresh_token: cred.refresh_token,
       token_credential_uri: "https://oauth2.googleapis.com/token"
@@ -18,7 +18,10 @@ class GmailIngestJob < ApplicationJob
     service = Google::Apis::GmailV1::GmailService.new
     service.authorization = auth
 
-    msg_list = service.list_user_messages("me", max_results: max_results)
+    cap = ENV.fetch("MAX_INGEST_PER_RUN", max_results).to_i
+    cap = max_results if cap <= 0 || cap > max_results
+
+    msg_list = service.list_user_messages("me", max_results: cap)
     provider = EmbeddingProvider.provider
 
     Array(msg_list.messages).each do |m|
@@ -47,7 +50,7 @@ class GmailIngestJob < ApplicationJob
   end
 
   def upsert_embedding!(user_id, kind, ref_id, text, provider)
-    Embedding.upsert!(
+    Embedding.upsert(
       { user_id: user_id, kind: kind, ref_id: ref_id, chunk: text, embedding: provider.embed_text(text) },
       unique_by: %i[user_id kind ref_id]
     )

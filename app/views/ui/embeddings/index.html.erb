@@ -1,6 +1,24 @@
 <div class="mx-auto max-w-3xl p-4 space-y-8">
   <h1 class="text-2xl font-semibold">Ask Anything</h1>
 
+  <% begin %>
+    <% user = @users.first || User.first %>
+    <% has_google = user && Credential.exists?(user_id: user.id, provider: "google") %>
+    <div class="mb-4 p-3 border rounded bg-gray-50">
+      <% if has_google %>
+        <span class="text-green-700 font-medium">Google connected</span>
+        <span class="text-sm text-gray-600 ml-2">(Gmail & Calendar read-only)</span>
+      <% else %>
+        <a href="<%= auth_google_path %>" class="inline-block bg-indigo-600 text-white px-3 py-2 rounded">
+          Connect Google
+        </a>
+        <span class="text-sm text-gray-600 ml-2">Gmail & Calendar (read-only)</span>
+      <% end %>
+    </div>
+  <% rescue => e %>
+    <div class="text-red-600 text-sm">UI hint error: <%= e.message %></div>
+  <% end %>
+
   <div class="grid gap-6">
     <!-- Create embedding -->
     <div class="p-4 border rounded">

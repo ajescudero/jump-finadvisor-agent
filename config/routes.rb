@@ -6,6 +6,7 @@ Rails.application.routes.draw do
   # Start OAuth and receive the callback
   get "/auth/google",          to: "oauth#google_start"
   get "/auth/google/callback", to: "oauth#google_callback"
+  get "/oauth2callback", to: "oauth#google_callback"
 
   resources :embeddings, only: [:create] do
     collection { post :nearest }
