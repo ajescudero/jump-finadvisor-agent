@@ -2,6 +2,8 @@
 class CalendarIngestJob < ApplicationJob
   queue_as :default
 
+  MAX_INGEST = ENV.fetch("MAX_INGEST_PER_RUN", 200).to_i
+
   def perform(user_id, time_min: Time.now - 30.days, time_max: Time.now + 30.days, max_results: 100)
     user = User.find(user_id)
     cred = Credential.find_by!(user_id: user.id, provider: "google")
@@ -20,17 +22,18 @@ class CalendarIngestJob < ApplicationJob
 
     provider = EmbeddingProvider.provider
 
-    cap = ENV.fetch("MAX_INGEST_PER_RUN", max_results).to_i
-    cap = max_results if cap <= 0 || cap > max_results
+    cap = [MAX_INGEST, max_results].min
 
-    events = svc.list_events(
-      "primary",
-      single_events: true,
-      order_by: "startTime",
-      time_min: time_min.iso8601,
-      time_max: time_max.iso8601,
-      max_results: cap
-    )
+    events = with_retries do
+      svc.list_events(
+        "primary",
+        single_events: true,
+        order_by: "startTime",
+        time_min: time_min.iso8601,
+        time_max: time_max.iso8601,
+        max_results: cap
+      )
+    end
 
     Array(events.items).each do |ev|
       start_t = ev.start&.date_time || ev.start&.date
@@ -42,11 +45,27 @@ class CalendarIngestJob < ApplicationJob
         ("description: #{ev.description}" if ev.description.present?)
       ].compact.join("\n")
 
+      # Persist as a Note for structured storage
+      save_event_note_record!(user.id, ev, text, start_t)
+
+      # Upsert embedding for semantic search
       upsert_embedding!(user.id, "event", ev.id, text, provider)
     end
   end
 
   private
+
+  def with_retries
+    tries = 0
+    begin
+      yield
+    rescue Google::Apis::RateLimitError, Google::Apis::ServerError
+      tries += 1
+      raise if tries > 3
+      sleep(2 ** tries)
+      retry
+    end
+  end
 
   def refresh_if_needed!(auth, cred)
     if auth.expired?
@@ -56,6 +75,13 @@ class CalendarIngestJob < ApplicationJob
         expires_at: Time.now + auth.expires_in.to_i
       )
     end
+  end
+
+  def save_event_note_record!(user_id, ev, text, start_time)
+    rec = Note.find_or_initialize_by(user_id: user_id, source: "google_calendar", ext_id: ev.id)
+    rec.body_text      = text
+    rec.created_at_ext = start_time if rec.respond_to?(:created_at_ext)
+    rec.save!
   end
 
   def upsert_embedding!(user_id, kind, ref_id, text, provider)
