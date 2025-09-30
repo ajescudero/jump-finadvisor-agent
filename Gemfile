@@ -12,6 +12,7 @@ gem "neighbor"             # Vector similarity (pgvector integration)
 
 # Background jobs
 gem "sidekiq"              # Background worker with Redis
+gem "sidekiq-cron"         # Cron-like scheduled jobs for Sidekiq
 
 # HTTP / APIs
 gem "faraday"              # HTTP client for external APIs
