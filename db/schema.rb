@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_29_200719) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_30_012328) do
   create_schema "auth"
   create_schema "extensions"
   create_schema "graphql"
@@ -40,6 +40,18 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_29_200719) do
     t.index ["user_id", "email"], name: "index_contacts_on_user_id_and_email"
     t.index ["user_id", "hubspot_id"], name: "index_contacts_on_user_id_and_hubspot_id", unique: true
     t.index ["user_id"], name: "index_contacts_on_user_id"
+  end
+
+  create_table "credentials", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "provider", null: false
+    t.text "access_token"
+    t.text "refresh_token"
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "provider"], name: "index_credentials_on_user_id_and_provider", unique: true
+    t.index ["user_id"], name: "index_credentials_on_user_id"
   end
 
   create_table "embeddings", force: :cascade do |t|
@@ -129,6 +141,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_29_200719) do
   end
 
   add_foreign_key "contacts", "users"
+  add_foreign_key "credentials", "users"
   add_foreign_key "embeddings", "users"
   add_foreign_key "instructions", "users"
   add_foreign_key "messages", "users"
