@@ -210,3 +210,63 @@ Smoke tests cover:
 - `POST /embeddings/nearest` endpoint (if defined in routes)  
 
 They skip gracefully if the route does not exist, avoiding false negatives.
+
+
+## Google OAuth (Dev)
+
+- Redirect URI: `/oauth2callback` (absolute: `http://localhost:3000/oauth2callback` and optionally `http://127.0.0.1:3000/oauth2callback`).
+- Scopes: Gmail read-only, Calendar read-only.
+- Test users: add your account (Audience → Testing) in Google Cloud Console.
+- ENV: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (and optionally `GOOGLE_REDIRECT_URI` if you need to override host/port).
+
+Runbook:
+
+```bash
+source bin/envup
+foreman start -f Procfile.dev
+open http://localhost:3000/auth/google   # redirects to Google; upon success shows "Google connected"
+
+# Ingest from terminal (after connecting):
+uid=$(bin/rails runner 'print User.first.id')
+bin/rails ingest:gmail[$uid]
+bin/rails ingest:calendar[$uid]
+```
+
+---
+
+## Operational
+
+- Healthcheck: `GET /healthz` returns JSON with DB, pgvector, and Redis status:
+  `{ "status": "ok", "checks": { "db": "ok", "vector": "ok|missing", "redis": "ok|fail" } }`
+- API token: Set `API_TOKEN` to protect `POST /embeddings` and `POST /embeddings/nearest` from unauthorized writes.
+- Cron ingestion: Set `ENABLE_CRON=true` (or run in production) to schedule periodic Gmail (every 15m) and Calendar (every 30m) ingestions via sidekiq-cron.
+
+---
+
+## Background jobs
+
+Sidekiq is included for ingestion/vectorization jobs. Configure Redis via `REDIS_URL`.
+
+- Development dashboard: http://localhost:3000/sidekiq (dev only)
+- Cron: Enabled when `ENABLE_CRON=true` or in production; see `config/initializers/sidekiq_cron.rb`.
+- Retry/backoff: Gmail/Calendar ingestors retry on 429/5xx up to 3 times with exponential backoff.
+
+---
+
+## Troubleshooting
+
+- Supabase pooler “Tenant or user not found”: Use the project-specific username `postgres.<project-ref>` on port 6543 and set `PREPARED_STATEMENTS=false`. For direct connections on 5432, set `PREPARED_STATEMENTS=true`.
+- Check pgvector and index:
+
+```bash
+bin/rails pgvector:check
+```
+
+- OAuth redirect mismatch: ensure the exact redirect URI is registered in Google Cloud Console and matches the app (`/oauth2callback`). You can set `GOOGLE_REDIRECT_URI` if you use a different host/port or an ngrok URL.
+
+## Data ingestion and filters
+
+- GmailIngestJob now also stores structured Gmail messages in the Messages table (subject, sender, sent_at, body_text) in addition to embeddings (kind: "email").
+- CalendarIngestJob stores structured Calendar events in the Notes table (source: "google_calendar", ext_id, body_text, created_at_ext) and embeds them (kind: "event").
+- The Nearest search form lets you filter by kind (All, Events, Emails) and will scope results to the selected user.
+- When API_TOKEN is set, the UI form passes it as a hidden param so you can use the in-browser search without custom headers (only in dev; for production prefer headers).
