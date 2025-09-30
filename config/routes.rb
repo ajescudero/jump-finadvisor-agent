@@ -1,6 +1,12 @@
+# config/routes.rb
 require "sidekiq/web"
 
 Rails.application.routes.draw do
+  # --- Auth (Google OAuth) ---
+  # Start OAuth and receive the callback
+  get "/auth/google",          to: "oauth#google_start"
+  get "/auth/google/callback", to: "oauth#google_callback"
+
   resources :embeddings, only: [:create] do
     collection { post :nearest }
   end
