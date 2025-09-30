@@ -23,6 +23,12 @@ Rails.application.routes.draw do
     mount Sidekiq::Web => "/sidekiq"
   end
 
+  # Dev-only helpers to trigger ingest jobs from the UI
+  if Rails.env.development?
+    post "/dev/ingest/gmail",    to: ->(env) { GmailIngestJob.perform_now(User.first.id); [302, {"Location"=>"/"}, []] }
+    post "/dev/ingest/calendar", to: ->(env) { CalendarIngestJob.perform_now(User.first.id); [302, {"Location"=>"/"}, []] }
+  end
+
   get "/healthz", to: "health#show"
   root to: "ui/embeddings#index"
 end
