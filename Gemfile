@@ -31,11 +31,22 @@ gem "hotwire-rails"        # Turbo + Stimulus
 gem "bcrypt", "~> 3.1.7"   # Local user authentication (optional)
 gem "bootsnap", "~> 1.18"  # Speed up boot
 
+# === Google APIs (runtime) ===
+# These are used by the app and jobs in all environments (dev/test/prod).
+gem "google-apis-gmail_v1"
+gem "google-apis-calendar_v3"
+gem "googleauth"
+
 # Development & test
 group :development, :test do
   gem "dotenv-rails"       # Load ENV from .env
   gem "pry"                # Better console
   gem "rspec-rails"        # Testing framework
+
+  # Only needed if you use Google::Auth::Stores::FileTokenStore during local dev.
+  # In production we will persist tokens in the DB (Credential), so this is not required there.
+
+  # Sidekiq Web UI (optional, dev only)
 end
 
 group :development do
