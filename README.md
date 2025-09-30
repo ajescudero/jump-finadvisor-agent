@@ -1,5 +1,9 @@
 # Jump Finadvisor Agent
 
+> **Status: Deployment Pending**  
+> Per Jump’s instructions — *“The app must be fully deployed (to Render or Fly.io or similar) and then submit the url to the app as well as a link to your repo so we can see the code.”*  
+> **This deployment step has not been completed yet.** Below you’ll find the exact deployment plan (Render/Fly.io), required env vars, and time estimates to complete it.
+
 An AI-powered assistant for financial advisors built with Ruby on Rails 7.2.  
 It integrates semantic search (pgvector), pluggable embedding providers (OpenAI or a local dummy provider for dev), and exposes minimal APIs and a simple UI to create vectors and query nearest neighbors.  
 Roadmap includes OAuth integrations with Google (Gmail/Calendar) and HubSpot for RAG over user data and proactive agent actions.
@@ -29,9 +33,9 @@ Roadmap includes OAuth integrations with Google (Gmail/Calendar) and HubSpot for
 
 ---
 
-## Getting Started
+## Getting Started (Local Dev)
 
-### 1) Clone and prerequisites
+### 1) Prerequisites
 - Ruby 3.3.9  
 - PostgreSQL 14+  
 - Redis  
@@ -40,8 +44,6 @@ Roadmap includes OAuth integrations with Google (Gmail/Calendar) and HubSpot for
 bundle install
 bin/rails db:prepare
 ```
-
----
 
 ### 2) Environment variables
 
@@ -57,67 +59,39 @@ Important variables:
 - `EMBEDDING_PROVIDER`: `dummy` (default) or `openai`  
 - `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`: required if provider is `openai`  
 - `DEMO_USER_EMAIL`: email used by seeds (default `dev@local.test`)  
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: for OAuth (Dev: Testing mode)  
+- `API_TOKEN`: optional, guards write endpoints in API
 
-#### Helper: load `.env`
-
-We provide `bin/envup` to safely load `.env` into your shell:
-
+Helper to load `.env`:
 ```bash
-# Load environment variables into current shell
 source bin/envup
-
-# Verify
 echo $DATABASE_URL
 ```
 
-- Ignores comments and blank lines  
-- Strips Windows CRLF endings if present  
-- Exports variables so they are available to Rails, Foreman, Sidekiq, etc.  
-
----
-
 ### 3) Database and seeds
-
-Ensure your database has pgvector extension enabled. If using Supabase, pgvector is available by default.
-
-Run migrations and seeds:
-
 ```bash
 bin/rails db:migrate
 bin/rails db:seed
 ```
 
----
-
 ### 4) Run the app (Procfile.dev)
-
-Use Foreman or Overmind to run web + tailwind + sidekiq:
-
 ```bash
 foreman start -f Procfile.dev
 ```
-
-Services:
-
 - Web: http://localhost:3000  
-- Sidekiq: uses `REDIS_URL`  
+- Sidekiq: uses `REDIS_URL`
 
----
+### 5) UI and APIs
 
-### 5) Use the UI and APIs
+UI: http://localhost:3000
 
-**UI:** Open http://localhost:3000 and create embeddings or query nearest neighbors.
-
-**API examples (curl):**
-
-Create by text (auto-embed):
+API examples:
 ```bash
-curl -X POST http://localhost:3000/embeddings   -H 'Content-Type: application/json'   -d '{"embedding": {"user_id": 1, "kind": "note", "ref_id": "x1", "chunk": "hello world", "content": "hello world"}}'
-```
+# Create by text (auto-embed)
+curl -X POST http://localhost:3000/embeddings   -H 'Content-Type: application/json'   -H 'X-API-TOKEN: '"$API_TOKEN"   -d '{"embedding": {"user_id": 1, "kind": "note", "ref_id": "x1", "chunk": "hello world", "content": "hello world"}}'
 
-Nearest by text:
-```bash
-curl -X POST http://localhost:3000/embeddings/nearest   -H 'Content-Type: application/json'   -d '{"query_text": "who mentioned baseball?", "limit": 5}'
+# Nearest by text
+curl -X POST http://localhost:3000/embeddings/nearest   -H 'Content-Type: application/json'   -H 'X-API-TOKEN: '"$API_TOKEN"   -d '{"query_text": "who mentioned baseball?", "limit": 5}'
 ```
 
 ---
@@ -129,8 +103,7 @@ curl -X POST http://localhost:3000/embeddings/nearest   -H 'Content-Type: applic
 - **Test users:** add your account (Audience → Testing) in Google Cloud Console.  
 - **ENV:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
-**Runbook:**
-
+Runbook:
 ```bash
 source bin/envup
 foreman start -f Procfile.dev
@@ -146,68 +119,210 @@ bin/rails ingest:calendar[$uid]
 
 ## Operational
 
-- **Healthcheck:** `GET /healthz` returns JSON with DB, pgvector, and Redis status:  
-  `{ "status": "ok", "checks": { "db": "ok", "vector": "ok|missing", "redis": "ok|fail" } }`
-- **API token:** set `API_TOKEN` to protect `POST /embeddings` and `POST /embeddings/nearest` from unauthorized writes.
-- **Cron ingestion:** set `ENABLE_CRON=true` (or run in production) to schedule periodic Gmail (every 15m) and Calendar (every 30m) ingestions via sidekiq-cron.
+- **Healthcheck:** `GET /healthz` → `{ "status": "ok", "checks": { "db": "ok", "vector": "ok|missing", "redis": "ok|fail" } }`
+- **API token:** set `API_TOKEN` to protect `POST /embeddings*`.
+- **Cron ingestion:** set `ENABLE_CRON=true` (or in production) to schedule periodic Gmail (every 15m) and Calendar (every 30m) ingestions via sidekiq-cron.
 
 ---
 
 ## Troubleshooting: Supabase connections
 
-If you see errors like `ActiveRecord::ConnectionNotEstablished` or `PG::ConnectionBad` with messages such as **"Tenant or user not found"** when running `bin/rails pgvector:check` or starting the app:
+If you see errors like `ActiveRecord::ConnectionNotEstablished` or `PG::ConnectionBad` with **"Tenant or user not found"**:
 
-Checklist:
-
-- Using Supabase pooler? Host looks like `aws-1-*.pooler.supabase.com` and port is `6543`.  
-  - Username must be project-specific: `postgres.<your-project-ref>`  
-  - Set `PREPARED_STATEMENTS=false`  
-- Connecting directly (no pooler)? Host is `aws-1-*.supabase.com` and port is `5432`.  
-  - Use username `postgres`  
-  - Set `PREPARED_STATEMENTS=true`  
-- Ensure `sslmode=require` in the `DATABASE_URL` query parameters when connecting to cloud Postgres.  
-
-Examples:
-
-**Pooler (recommended for app servers):**
-```env
-DATABASE_URL=postgresql://postgres.rhyrgouiockrmmaxzjht:YOUR_PW@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require
-PREPARED_STATEMENTS=false
-```
-
-**Direct (useful for scripts/migrations):**
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PW@aws-1-sa-east-1.supabase.com:5432/postgres?sslmode=require
-PREPARED_STATEMENTS=true
-```
-
-You can also run:
-```bash
-bin/rails pgvector:check
-```
-It will print environment diagnostics (host/port/db/user masked) and warn about common misconfigurations.
-
----
-
-## Development Notes
-
-- Importmap is used for JavaScript (`javascript_importmap_tags`). No Node/npm required.  
-- Sprockets asset pipeline is enabled; Tailwind is provided via `tailwindcss-rails`.  
-- Prepared statements are disabled by default to work with Supabase pgBouncer. You can enable them when connecting directly to Postgres.  
-
----
-
-## Deployment
-
-- Provision PostgreSQL with pgvector (Supabase recommended) and Redis.  
-- Set `DATABASE_URL` and `PREPARED_STATEMENTS` appropriately (see `.env.example`).  
-- Ensure `RAILS_SERVE_STATIC_FILES=1` and proper secrets set in production.  
+- Pooler? host like `aws-1-*.pooler.supabase.com`, port `6543` → user `postgres.<project-ref>`, `PREPARED_STATEMENTS=false`.  
+- Direct? host like `aws-1-*.supabase.com`, port `5432` → user `postgres`, `PREPARED_STATEMENTS=true`.  
+- Add `sslmode=require` to `DATABASE_URL` query.
 
 Run:
 ```bash
-bundle exec rails db:migrate
-bundle exec puma -C config/puma.rb
+bin/rails pgvector:check
 ```
+
+---
+
+# Deployment (REQUIRED by JUMP) — **Pending**
+
+> **Requirement (from Jump):** *“The app must be fully deployed (to Render or Fly.io or similar) and then submit the url to the app as well as a link to your repo so we can see the code.”*
+
+Below are two supported paths. **We have not deployed yet**; this section documents exactly how to finish it.
+
+## Option A — Deploy to Render (recommended for simplicity)
+
+### Prereqs
+- GitHub repo (Render has access).  
+- Supabase ready (`DATABASE_URL` using pooler: port **6543**, `PREPARED_STATEMENTS=false`).  
+- Managed Redis on Render.  
+- Secrets ready:  
+  `RAILS_MASTER_KEY`, `DATABASE_URL`, `REDIS_URL`, `EMBEDDING_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `API_TOKEN`.
+
+### Procfile
+```
+web: bundle exec puma -C config/puma.rb
+worker: bundle exec sidekiq -C config/sidekiq.yml
+```
+
+### Render Blueprint
+Create `render.yaml` in repo root:
+
+```yaml
+services:
+  - type: web
+    name: jump-finadvisor-web
+    env: ruby
+    buildCommand: bundle install && bundle exec rake assets:precompile
+    startCommand: bundle exec puma -C config/puma.rb
+    plan: standard
+    autoDeploy: true
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "1"
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "1"
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PREPARED_STATEMENTS
+        value: "false"   # Supabase pooler
+      - key: REDIS_URL
+        sync: false
+      - key: EMBEDDING_PROVIDER
+        value: dummy
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: API_TOKEN
+        sync: false
+    healthCheckPath: /healthz
+
+  - type: worker
+    name: jump-finadvisor-worker
+    env: ruby
+    buildCommand: bundle install && bundle exec rake assets:precompile
+    startCommand: bundle exec sidekiq -C config/sidekiq.yml
+    plan: standard
+    autoDeploy: true
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "1"
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PREPARED_STATEMENTS
+        value: "false"
+      - key: REDIS_URL
+        sync: false
+      - key: EMBEDDING_PROVIDER
+        value: dummy
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ENABLE_CRON
+        value: "true"   # enable sidekiq-cron in prod
+```
+
+### Migrations on Render
+Configure **Post-deploy command** on the web service:
+```
+bundle exec rails db:migrate
+```
+
+### Steps on Render
+- New → **Blueprint** → select your repo (Render will detect `render.yaml`).
+- Create Render Redis → copy `REDIS_URL` to both services.
+- Add all environment variables.
+- Deploy.
+
+## Option B — Deploy to Fly.io
+
+### Prereqs
+- `flyctl` installed and logged in.
+- Supabase `DATABASE_URL` (pooler) and a Redis provider (Upstash or Fly Redis).
+
+### Dockerfile (repo root)
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM ruby:3.3 AS base
+RUN apt-get update -y && apt-get install -y build-essential libpq-dev git
+WORKDIR /app
+
+COPY Gemfile Gemfile.lock ./
+RUN bundle config set without "development test"  && bundle install --jobs 4 --retry 3
+
+COPY . .
+
+ENV RAILS_ENV=production
+ENV RAILS_SERVE_STATIC_FILES=1
+ENV RAILS_LOG_TO_STDOUT=1
+RUN bundle exec rake assets:precompile
+
+EXPOSE 8080
+ENV PORT=8080
+CMD ["bundle", "exec", "puma", "-C", "config/puma.rb"]
+```
+
+> Ensure `config/puma.rb` uses `ENV['PORT']`, e.g. `port ENV.fetch("PORT") { 3000 }`.
+
+### fly.toml
+```toml
+app = "jump-finadvisor"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  RAILS_ENV = "production"
+  RAILS_LOG_TO_STDOUT = "1"
+  RAILS_SERVE_STATIC_FILES = "1"
+  PREPARED_STATEMENTS = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+# Optionally define separate worker app or process group for Sidekiq
+```
+
+### Secrets & Deploy
+```bash
+fly launch --no-deploy
+fly secrets set   RAILS_MASTER_KEY=...   DATABASE_URL=...   REDIS_URL=...   EMBEDDING_PROVIDER=dummy   OPENAI_API_KEY=...   OPENAI_EMBEDDING_MODEL=text-embedding-3-small   GOOGLE_CLIENT_ID=...   GOOGLE_CLIENT_SECRET=...   API_TOKEN=...
+
+fly deploy
+# First migration:
+fly ssh console -C "bundle exec rails db:migrate"
+```
+
+## OAuth in Production
+
+- Add the production URL to **Authorized redirect URIs** in your Google OAuth client:  
+  `https://<your-app-domain>/oauth2callback`
+- Keep Testing mode and add reviewers’ emails as **Test users**, or proceed to App Verification if needed.
+
+## What to submit (Hiring Team)
+
+- **Public app URL** (Render or Fly.io).  
+- **Repository link** (private is fine; share read access to reviewers’ GitHub usernames or make it public temporarily).  
+- Note: OAuth is in **Testing** mode; share test user emails if end-to-end OAuth is required.
 
 ---
 
@@ -224,66 +339,14 @@ bundle exec puma -C config/puma.rb
 - ✅ Optional API token guard for write endpoints  
 - ✅ Dev buttons to trigger ingest on demand (optional)  
 
----
-
 ## Remaining Work (JUMP scope)
 
-1. **UI polish & filters (S):** optional filters by `kind` and by `user`, improve empty-state and errors.  
-2. **Retry & rate-limit hardening (S):** ensure Gmail/Calendar jobs retry on 429/5xx with exponential backoff; cap `MAX_INGEST_PER_RUN`.  
-3. **Cron scheduling (S):** enable `sidekiq-cron` in staging/prod with 15–30m cadence.  
-4. **OpenAI production path (S):** finalize envs and model (`text-embedding-3-small` by default); smoke test.  
-5. **Security pass (S):** keep `API_TOKEN` on write endpoints; basic logs redaction.  
-6. **Docs (XS):** README final audit + runbook screenshots.  
-7. **(Optional) HubSpot OAuth (M–L):** contacts/notes ingestion + embeddings.  
-8. **(Optional) Proactive agent (M–L):** scheduled actions over nearest neighbors + instruction memory.  
-9. **(Optional) Tests (M):** request specs for `/embeddings/nearest`, OAuth flow stub, job stubs for Google APIs.
+1. **Deploy to Render/Fly.io** (**Required by Jump**) — *Pending*.  
+2. **UI polish & filters (S)**; **Retry & rate-limit hardening (S)**; **Cron scheduling (S)**; **OpenAI prod (S)**; **Security pass (S)**; **Docs (XS)**.  
+3. **Optional:** HubSpot OAuth (M–L); Proactive agent loop (M–L); Tests (M).
 
-Sizes: XS=<½d, S=~1d, M=~2–3d, L=~1–2w.
+## Time Estimates
 
----
-
-## Time Estimates (to complete MVP for JUMP)
-
-**Assumptions:** OAuth already works in Testing; Gmail/Calendar quotas OK; no prod SSO/login requirements beyond API token.
-
-- UI polish & filters: **0.5–1 day**  
-- Retry/backoff + caps in jobs: **0.5 day**  
-- Sidekiq-Cron setup + env toggles: **0.5 day**  
-- OpenAI provider (prod validation + docs): **0.5 day**  
-- Security/logs pass + README screenshots: **0.5 day**  
-
-**Total MVP hardening:** **~2–3 days**.
-
-**Optional additions (post-MVP):**  
-- HubSpot OAuth + ingestors: **3–7 days** (depending on scopes and volume)  
-- Proactive agent loop + actions: **3–5 days**  
-- Test suite meaningful coverage: **2–3 days**
-
----
-
-## Acceptance Criteria (MVP, ready for demo/staging)
-
-- User can connect Google via `/auth/google` (Testing mode) and see **Google connected** in UI.  
-- `GmailIngestJob` / `CalendarIngestJob` run on demand and via cron; embeddings appear and are searchable.  
-- `/embeddings/nearest` returns in-page results (Turbo) and JSON (for API).  
-- `/healthz` reports `db: ok`, `vector: ok`, `redis: ok`.  
-- No duplicate embeddings for the same `(user_id, kind, ref_id)`; `upsert` used consistently.  
-- API writes guarded by `API_TOKEN` when set.  
-
----
-
-## Tests
-
-RSpec is included with smoke tests for critical endpoints.
-
-Run all tests:
-```bash
-bundle exec rspec
-```
-
-Smoke tests cover:
-
-- `/healthz` endpoint  
-- `POST /embeddings/nearest` endpoint  
-
-They skip gracefully if the route does not exist, avoiding false negatives.
+- **Deployment (Render or Fly.io):** ~0.5–1 day (including env setup, secrets, and first successful healthcheck).  
+- **MVP hardening (remaining S/XS tasks):** ~2–3 days.  
+- **Optional features:** HubSpot (3–7 days), Proactive agent (3–5 days), Tests (2–3 days).
