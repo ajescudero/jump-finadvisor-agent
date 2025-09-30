@@ -1,0 +1,18 @@
+<!-- Renders nearest search results inside the turbo frame -->
+<div class="mt-2">
+  <% if rows.blank? %>
+    <div class="text-sm text-gray-500">No results.</div>
+  <% else %>
+    <ul class="space-y-1">
+      <% rows.each do |r| %>
+        <li class="text-sm">
+          <span class="font-semibold"><%= r.kind %></span>
+          (<%= r.ref_id %>)
+          <% if r.respond_to?(:chunk) && r.chunk.present? %>
+            — <span class="text-gray-600"><%= r.chunk.truncate(100) %></span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+</div>

@@ -2,6 +2,7 @@
   <h1 class="text-2xl font-semibold">Ask Anything</h1>
 
   <div class="grid gap-6">
+    <!-- Create embedding -->
     <div class="p-4 border rounded">
       <h2 class="font-medium mb-2">Create embedding</h2>
       <form action="/embeddings" method="post" class="space-y-2">
@@ -36,14 +37,20 @@
       </form>
     </div>
 
+    <!-- Nearest search (Turbo Streams) -->
     <div class="p-4 border rounded">
       <h2 class="font-medium mb-2">Nearest search</h2>
-      <form action="/embeddings/nearest" method="post" class="space-y-2">
+
+      <!-- IMPORTANT: no data-turbo="false". Let Turbo handle the response -->
+      <!-- Target the turbo-frame below so results update in-place -->
+      <form action="/embeddings/nearest" method="post" class="space-y-2" data-turbo-frame="nearest_results">
         <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+
         <div>
           <label class="text-sm">Query text</label>
-          <textarea name="query_text" rows="3" class="w-full border rounded p-2" placeholder="Ask about your data..."></textarea>
+          <textarea name="query_text" rows="3" class="w-full border rounded p-2" placeholder="Try: baseball, meeting, AAPL, kickoff, review"></textarea>
         </div>
+
         <div class="grid grid-cols-3 gap-2">
           <div>
             <label class="text-sm">Top K</label>
@@ -52,14 +59,33 @@
           <div>
             <label class="text-sm">Distance</label>
             <select name="distance" class="w-full border rounded p-2">
-              <option value="cosine">cosine</option>
+              <option value="cosine" selected>cosine</option>
               <option value="l2">l2</option>
               <option value="ip">ip</option>
             </select>
           </div>
         </div>
-        <button class="bg-emerald-600 text-white px-3 py-2 rounded">Search</button>
+
+        <div class="flex items-center gap-3">
+          <button class="bg-emerald-600 text-white px-3 py-2 rounded">Search</button>
+
+          <!-- Optional: open JSON in a new tab for debugging -->
+          <!-- Keeps your API behavior available -->
+          <button
+            formaction="/embeddings/nearest"
+            formmethod="post"
+            formtarget="_blank"
+            data-turbo="false"
+            class="text-sm underline">
+            Open JSON
+          </button>
+        </div>
       </form>
+
+      <!-- Results frame: server will turbo_stream.update this frame -->
+      <turbo-frame id="nearest_results" class="block mt-4">
+        <div class="text-sm text-gray-500">Enter a query and press Search.</div>
+      </turbo-frame>
 
       <div class="mt-4">
         <h3 class="font-medium">Recent</h3>

@@ -23,9 +23,18 @@ class EmbeddingsController < ApplicationController
     e.chunk = attrs[:chunk]
     e.embedding = vector
     e.save!
-    render json: { id: e.id }
+
+    respond_to do |format|
+      format.html { redirect_to root_path, notice: "Embedding saved" }
+      format.turbo_stream { redirect_to root_path, notice: "Embedding saved" }
+      format.json { render json: { id: e.id } }
+    end
   rescue => ex
-    render json: { error: ex.message }, status: 422
+    respond_to do |format|
+      format.html { redirect_to root_path, alert: ex.message }
+      format.turbo_stream { redirect_to root_path, alert: ex.message }
+      format.json { render json: { error: ex.message }, status: 422 }
+    end
   end
 
   # POST /embeddings/nearest
@@ -38,14 +47,42 @@ class EmbeddingsController < ApplicationController
       vector = EmbeddingProvider.embed_text(qtext)
     end
 
-    limit = params.fetch(:limit, 5).to_i
+    limit    = params.fetch(:limit, 5).to_i
     distance = params.fetch(:distance, "cosine").to_sym
-    rows = Embedding.nearest_neighbors(:embedding, vector, distance: distance)
-                    .limit(limit)
-                    .pluck(:id, :user_id, :kind, :ref_id)
-    render json: { results: rows.map { |id, uid, kind, ref| { id: id, user_id: uid, kind: kind, ref_id: ref } } }
+
+    @rows = Embedding.nearest_neighbors(:embedding, vector, distance: distance)
+                     .limit(limit)
+                     .select(:id, :user_id, :kind, :ref_id, :chunk)
+
+    respond_to do |format|
+      # Nice in-page update with Turbo Streams
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.update(
+          "nearest_results",
+          partial: "ui/embeddings/nearest_results",
+          locals: { rows: @rows }
+        )
+      end
+      # Keep JSON API behavior unchanged
+      format.json do
+        render json: {
+          results: @rows.map { |r| { id: r.id, user_id: r.user_id, kind: r.kind, ref_id: r.ref_id } }
+        }
+      end
+      # Optional HTML fallback
+      format.html { redirect_to root_path, notice: "Search complete" }
+    end
   rescue => ex
-    render json: { error: ex.message }, status: 422
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.update(
+          "nearest_results",
+          %(<div class="text-red-600">#{ERB::Util.html_escape(ex.message)}</div>).html_safe
+        )
+      end
+      format.json { render json: { error: ex.message }, status: 422 }
+      format.html { redirect_to root_path, alert: ex.message }
+    end
   end
 
   private

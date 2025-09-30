@@ -1,5 +1,6 @@
-# Demo seeds for quick testing
+# db/seeds.rb
 
+# Demo user for development/testing
 u = User.find_or_create_by!(email: ENV.fetch("DEMO_USER_EMAIL", "dev@local.test"))
 
 if Embedding.where(user: u).count == 0
@@ -18,7 +19,21 @@ if Embedding.where(user: u).count == 0
       embedding: EmbeddingProvider.embed_text(s[:text])
     )
   end
-  puts "Seeded #{samples.size} embeddings for user ##{u.id}"
+  puts "Seeded #{samples.size} sample embeddings for user ##{u.id}"
 else
   puts "Embeddings already present for user ##{u.id}"
 end
+
+# -------------------------------------------------------
+# Extra: run dummy ingest jobs (if they exist in the app)
+# -------------------------------------------------------
+begin
+  GmailIngestJob.perform_now(u.id)
+  CalendarIngestJob.perform_now(u.id)
+  puts "Dummy ingest jobs seeded extra embeddings for user ##{u.id}"
+rescue NameError => e
+  puts "Skip ingest jobs: #{e.message}"
+end
+
+puts "Final embeddings count:"
+puts Embedding.where(user_id: u.id).group(:kind).count.inspect
