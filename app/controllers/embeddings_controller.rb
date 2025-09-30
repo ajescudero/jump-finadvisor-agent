@@ -50,9 +50,17 @@ class EmbeddingsController < ApplicationController
     limit    = params.fetch(:limit, 5).to_i
     distance = params.fetch(:distance, "cosine").to_sym
 
-    @rows = Embedding.nearest_neighbors(:embedding, vector, distance: distance)
-                     .limit(limit)
-                     .select(:id, :user_id, :kind, :ref_id, :chunk)
+    scope = Embedding.all
+    if params[:user_id].present?
+      scope = scope.where(user_id: params[:user_id].to_i)
+    end
+    if params[:filter_kind].present? && %w[email event note message].include?(params[:filter_kind])
+      scope = scope.where(kind: params[:filter_kind])
+    end
+
+    @rows = scope.nearest_neighbors(:embedding, vector, distance: distance)
+                 .limit(limit)
+                 .select(:id, :user_id, :kind, :ref_id, :chunk)
 
     respond_to do |format|
       # Nice in-page update with Turbo Streams

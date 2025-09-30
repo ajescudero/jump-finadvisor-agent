@@ -1,18 +1,36 @@
-<!-- Renders nearest search results inside the turbo frame -->
-<div class="mt-2">
+<!-- Nearest results rendered like calendar/email cards -->
+<div class="mt-2 space-y-4">
   <% if rows.blank? %>
     <div class="text-sm text-gray-500">No results.</div>
   <% else %>
-    <ul class="space-y-1">
+    <%# Intro line mimicking assistant tone %>
+    <div class="text-[15px] leading-6 text-gray-800">
+      Here are the most relevant items I found:
+    </div>
+
+    <div class="space-y-4">
       <% rows.each do |r| %>
-        <li class="text-sm">
-          <span class="font-semibold"><%= r.kind %></span>
-          (<%= r.ref_id %>)
-          <% if r.respond_to?(:chunk) && r.chunk.present? %>
-            — <span class="text-gray-600"><%= r.chunk.truncate(100) %></span>
+        <div class="border rounded-xl p-4 shadow-sm hover:shadow transition bg-white">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-gray-500"><%= r.kind %></div>
+              <div class="mt-1 font-semibold text-gray-900 truncate">
+                <% title = (r.chunk.to_s.split("\n").first.presence || r.ref_id) %>
+                <%= title.truncate(80) %>
+              </div>
+            </div>
+            <div class="text-xs text-gray-400">#<%= r.id %></div>
+          </div>
+          <% body = r.chunk.to_s.split("\n")[1..]&.join("\n") %>
+          <% if body.present? %>
+            <p class="mt-2 text-sm text-gray-700 whitespace-pre-line"><%= body.truncate(200) %></p>
           <% end %>
-        </li>
+          <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 border">ref: <%= r.ref_id %></span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 border">user: <%= r.user_id %></span>
+          </div>
+        </div>
       <% end %>
-    </ul>
+    </div>
   <% end %>
 </div>
