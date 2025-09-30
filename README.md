@@ -122,40 +122,34 @@ curl -X POST http://localhost:3000/embeddings/nearest   -H 'Content-Type: applic
 
 ---
 
-## Background jobs
+## Google OAuth (Dev)
 
-Sidekiq is included for future ingestion/vectorization jobs. Configure Redis via `REDIS_URL`.
+- **Redirect URI:** `/oauth2callback` (absolute: `http://localhost:3000/oauth2callback` and optionally `http://127.0.0.1:3000/oauth2callback`).  
+- **Scopes:** Gmail read-only, Calendar read-only.  
+- **Test users:** add your account (Audience → Testing) in Google Cloud Console.  
+- **ENV:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
----
+**Runbook:**
 
-## Development Notes
-
-- Importmap is used for JavaScript (`javascript_importmap_tags`). No Node/npm required.  
-- Sprockets asset pipeline is enabled; Tailwind is provided via `tailwindcss-rails`.  
-- Prepared statements are disabled by default to work with Supabase pgBouncer. You can enable them when connecting directly to Postgres.  
-
----
-
-## Deployment
-
-- Provision PostgreSQL with pgvector (Supabase recommended) and Redis.  
-- Set `DATABASE_URL` and `PREPARED_STATEMENTS` appropriately (see `.env.example`).  
-- Ensure `RAILS_SERVE_STATIC_FILES=1` and proper secrets set in production.  
-
-Run:
 ```bash
-bundle exec rails db:migrate
-bundle exec puma -C config/puma.rb
+source bin/envup
+foreman start -f Procfile.dev
+open http://localhost:3000/auth/google   # redirects to Google; upon success shows "Google connected"
+
+# Ingest from terminal (after connecting):
+uid=$(bin/rails runner 'print User.first.id')
+bin/rails ingest:gmail[$uid]
+bin/rails ingest:calendar[$uid]
 ```
 
 ---
 
-## Roadmap
+## Operational
 
-- Google OAuth login and Gmail/Calendar ingestion (RAG)  
-- HubSpot OAuth and data ingestion (contacts, notes)  
-- Proactive agent with instructions + tool calling via background jobs  
-- Tests (RSpec) and production deploy templates (Render/Fly)  
+- **Healthcheck:** `GET /healthz` returns JSON with DB, pgvector, and Redis status:  
+  `{ "status": "ok", "checks": { "db": "ok", "vector": "ok|missing", "redis": "ok|fail" } }`
+- **API token:** set `API_TOKEN` to protect `POST /embeddings` and `POST /embeddings/nearest` from unauthorized writes.
+- **Cron ingestion:** set `ENABLE_CRON=true` (or run in production) to schedule periodic Gmail (every 15m) and Calendar (every 30m) ingestions via sidekiq-cron.
 
 ---
 
@@ -195,6 +189,89 @@ It will print environment diagnostics (host/port/db/user masked) and warn about 
 
 ---
 
+## Development Notes
+
+- Importmap is used for JavaScript (`javascript_importmap_tags`). No Node/npm required.  
+- Sprockets asset pipeline is enabled; Tailwind is provided via `tailwindcss-rails`.  
+- Prepared statements are disabled by default to work with Supabase pgBouncer. You can enable them when connecting directly to Postgres.  
+
+---
+
+## Deployment
+
+- Provision PostgreSQL with pgvector (Supabase recommended) and Redis.  
+- Set `DATABASE_URL` and `PREPARED_STATEMENTS` appropriately (see `.env.example`).  
+- Ensure `RAILS_SERVE_STATIC_FILES=1` and proper secrets set in production.  
+
+Run:
+```bash
+bundle exec rails db:migrate
+bundle exec puma -C config/puma.rb
+```
+
+---
+
+## Current Status (What’s done)
+
+- ✅ pgvector wired with nearest-neighbor queries (cosine/L2/IP)  
+- ✅ Embedding providers: `dummy` (dev) and `openai` (prod)  
+- ✅ Minimal UI at `/` with Turbo Streams for in-page results  
+- ✅ Seeds + sample data; helper `bin/envup`  
+- ✅ Google OAuth (Testing mode) with `/oauth2callback` and **DB token store**  
+- ✅ Gmail & Calendar **ingestors (jobs)** pulling real data → upserting embeddings (`kind: "email" | "event"`)  
+- ✅ Healthcheck (`/healthz`) for DB/pgvector/Redis  
+- ✅ Unique index on `(user_id, kind, ref_id)` to dedupe + use `upsert`  
+- ✅ Optional API token guard for write endpoints  
+- ✅ Dev buttons to trigger ingest on demand (optional)  
+
+---
+
+## Remaining Work (JUMP scope)
+
+1. **UI polish & filters (S):** optional filters by `kind` and by `user`, improve empty-state and errors.  
+2. **Retry & rate-limit hardening (S):** ensure Gmail/Calendar jobs retry on 429/5xx with exponential backoff; cap `MAX_INGEST_PER_RUN`.  
+3. **Cron scheduling (S):** enable `sidekiq-cron` in staging/prod with 15–30m cadence.  
+4. **OpenAI production path (S):** finalize envs and model (`text-embedding-3-small` by default); smoke test.  
+5. **Security pass (S):** keep `API_TOKEN` on write endpoints; basic logs redaction.  
+6. **Docs (XS):** README final audit + runbook screenshots.  
+7. **(Optional) HubSpot OAuth (M–L):** contacts/notes ingestion + embeddings.  
+8. **(Optional) Proactive agent (M–L):** scheduled actions over nearest neighbors + instruction memory.  
+9. **(Optional) Tests (M):** request specs for `/embeddings/nearest`, OAuth flow stub, job stubs for Google APIs.
+
+Sizes: XS=<½d, S=~1d, M=~2–3d, L=~1–2w.
+
+---
+
+## Time Estimates (to complete MVP for JUMP)
+
+**Assumptions:** OAuth already works in Testing; Gmail/Calendar quotas OK; no prod SSO/login requirements beyond API token.
+
+- UI polish & filters: **0.5–1 day**  
+- Retry/backoff + caps in jobs: **0.5 day**  
+- Sidekiq-Cron setup + env toggles: **0.5 day**  
+- OpenAI provider (prod validation + docs): **0.5 day**  
+- Security/logs pass + README screenshots: **0.5 day**  
+
+**Total MVP hardening:** **~2–3 days**.
+
+**Optional additions (post-MVP):**  
+- HubSpot OAuth + ingestors: **3–7 days** (depending on scopes and volume)  
+- Proactive agent loop + actions: **3–5 days**  
+- Test suite meaningful coverage: **2–3 days**
+
+---
+
+## Acceptance Criteria (MVP, ready for demo/staging)
+
+- User can connect Google via `/auth/google` (Testing mode) and see **Google connected** in UI.  
+- `GmailIngestJob` / `CalendarIngestJob` run on demand and via cron; embeddings appear and are searchable.  
+- `/embeddings/nearest` returns in-page results (Turbo) and JSON (for API).  
+- `/healthz` reports `db: ok`, `vector: ok`, `redis: ok`.  
+- No duplicate embeddings for the same `(user_id, kind, ref_id)`; `upsert` used consistently.  
+- API writes guarded by `API_TOKEN` when set.  
+
+---
+
 ## Tests
 
 RSpec is included with smoke tests for critical endpoints.
@@ -206,67 +283,7 @@ bundle exec rspec
 
 Smoke tests cover:
 
-- `/healthz` endpoint (if defined in routes)  
-- `POST /embeddings/nearest` endpoint (if defined in routes)  
+- `/healthz` endpoint  
+- `POST /embeddings/nearest` endpoint  
 
 They skip gracefully if the route does not exist, avoiding false negatives.
-
-
-## Google OAuth (Dev)
-
-- Redirect URI: `/oauth2callback` (absolute: `http://localhost:3000/oauth2callback` and optionally `http://127.0.0.1:3000/oauth2callback`).
-- Scopes: Gmail read-only, Calendar read-only.
-- Test users: add your account (Audience → Testing) in Google Cloud Console.
-- ENV: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (and optionally `GOOGLE_REDIRECT_URI` if you need to override host/port).
-
-Runbook:
-
-```bash
-source bin/envup
-foreman start -f Procfile.dev
-open http://localhost:3000/auth/google   # redirects to Google; upon success shows "Google connected"
-
-# Ingest from terminal (after connecting):
-uid=$(bin/rails runner 'print User.first.id')
-bin/rails ingest:gmail[$uid]
-bin/rails ingest:calendar[$uid]
-```
-
----
-
-## Operational
-
-- Healthcheck: `GET /healthz` returns JSON with DB, pgvector, and Redis status:
-  `{ "status": "ok", "checks": { "db": "ok", "vector": "ok|missing", "redis": "ok|fail" } }`
-- API token: Set `API_TOKEN` to protect `POST /embeddings` and `POST /embeddings/nearest` from unauthorized writes.
-- Cron ingestion: Set `ENABLE_CRON=true` (or run in production) to schedule periodic Gmail (every 15m) and Calendar (every 30m) ingestions via sidekiq-cron.
-
----
-
-## Background jobs
-
-Sidekiq is included for ingestion/vectorization jobs. Configure Redis via `REDIS_URL`.
-
-- Development dashboard: http://localhost:3000/sidekiq (dev only)
-- Cron: Enabled when `ENABLE_CRON=true` or in production; see `config/initializers/sidekiq_cron.rb`.
-- Retry/backoff: Gmail/Calendar ingestors retry on 429/5xx up to 3 times with exponential backoff.
-
----
-
-## Troubleshooting
-
-- Supabase pooler “Tenant or user not found”: Use the project-specific username `postgres.<project-ref>` on port 6543 and set `PREPARED_STATEMENTS=false`. For direct connections on 5432, set `PREPARED_STATEMENTS=true`.
-- Check pgvector and index:
-
-```bash
-bin/rails pgvector:check
-```
-
-- OAuth redirect mismatch: ensure the exact redirect URI is registered in Google Cloud Console and matches the app (`/oauth2callback`). You can set `GOOGLE_REDIRECT_URI` if you use a different host/port or an ngrok URL.
-
-## Data ingestion and filters
-
-- GmailIngestJob now also stores structured Gmail messages in the Messages table (subject, sender, sent_at, body_text) in addition to embeddings (kind: "email").
-- CalendarIngestJob stores structured Calendar events in the Notes table (source: "google_calendar", ext_id, body_text, created_at_ext) and embeds them (kind: "event").
-- The Nearest search form lets you filter by kind (All, Events, Emails) and will scope results to the selected user.
-- When API_TOKEN is set, the UI form passes it as a hidden param so you can use the in-browser search without custom headers (only in dev; for production prefer headers).
