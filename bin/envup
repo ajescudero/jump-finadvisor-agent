@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Loads .env into the current shell (ignores comments/blank lines; strips CRLF)
+
+set -a
+if [ -f ".env" ]; then
+  # Remove comments, blank lines, and CRLF line endings before sourcing
+  source <(grep -v '^\s*#' .env | sed -e 's/\r$//' -e '/^\s*$/d')
+else
+  echo ".env not found in $(pwd)" 1>&2
+fi
+set +a
