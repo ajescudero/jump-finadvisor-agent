@@ -100,3 +100,28 @@ bundle exec puma -C config/puma.rb
 - HubSpot OAuth and data ingestion (contacts, notes)
 - Proactive agent with instructions + tool calling via background jobs
 - Tests (RSpec) and production deploy templates (Render/Fly)
+
+## Troubleshooting: Supabase connections
+If you see errors like ActiveRecord::ConnectionNotEstablished or PG::ConnectionBad with messages such as "Tenant or user not found" when running bin/rails pgvector:check or starting the app:
+
+Checklist:
+- Are you using the Supabase pooler? Then your host looks like aws-1-<region>.pooler.supabase.com and port is 6543.
+  - The username must be project-specific: postgres.<your-project-ref>
+  - Set PREPARED_STATEMENTS=false
+- Are you connecting directly (no pooler)? Then host is aws-1-<region>.supabase.com and port is 5432.
+  - Use username postgres
+  - Set PREPARED_STATEMENTS=true
+- Ensure sslmode=require in the DATABASE_URL query parameters when connecting to cloud Postgres.
+
+Examples:
+- Pooler (recommended for app servers):
+  DATABASE_URL=postgresql://postgres.rhyrgouiockrmmaxzjht:YOUR_PW@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require
+  PREPARED_STATEMENTS=false
+
+- Direct (useful for scripts/migrations):
+  DATABASE_URL=postgresql://postgres:YOUR_PW@aws-1-sa-east-1.supabase.com:5432/postgres?sslmode=require
+  PREPARED_STATEMENTS=true
+
+You can also run:
+  bin/rails pgvector:check
+It will now print environment diagnostics (host/port/db/user masked) and warn about common misconfigurations.

@@ -42,6 +42,7 @@ group :development do
   gem "web-console"        # Browser console
   gem "listen"             # File watcher
   gem "spring"             # Faster boot in dev
+  gem "sinatra", require: false
 end
 
 group :test do

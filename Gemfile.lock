@@ -159,6 +159,8 @@ GEM
     msgpack (1.8.0)
     multi_xml (0.7.2)
       bigdecimal (~> 3.1)
+    mustermann (3.0.4)
+      ruby2_keywords (~> 0.0.1)
     neighbor (0.6.0)
       activerecord (>= 7.1)
     net-http (0.6.0)
@@ -308,6 +310,7 @@ GEM
       rspec-mocks (~> 3.13)
       rspec-support (~> 3.13)
     rspec-support (3.13.6)
+    ruby2_keywords (0.0.5)
     rubyzip (3.1.1)
     securerandom (0.4.1)
     selenium-webdriver (4.35.0)
@@ -322,6 +325,13 @@ GEM
       logger (>= 1.6.2)
       rack (>= 3.1.0)
       redis-client (>= 0.23.2)
+    sinatra (4.1.1)
+      logger (>= 1.6.0)
+      mustermann (~> 3.0)
+      rack (>= 3.0.0, < 4)
+      rack-protection (= 4.1.1)
+      rack-session (>= 2.0.0, < 3)
+      tilt (~> 2.0)
     snaky_hash (2.0.3)
       hashie (>= 0.1.0, < 6)
       version_gem (>= 1.1.8, < 3)
@@ -348,6 +358,7 @@ GEM
     tailwindcss-ruby (4.1.13-x86_64-linux-gnu)
     tailwindcss-ruby (4.1.13-x86_64-linux-musl)
     thor (1.4.0)
+    tilt (2.6.1)
     timeout (0.4.3)
     turbo-rails (2.0.12)
       actionpack (>= 6.0.0)
@@ -403,6 +414,7 @@ DEPENDENCIES
   rspec-rails
   selenium-webdriver
   sidekiq
+  sinatra
   spring
   sprockets-rails
   tailwindcss-rails

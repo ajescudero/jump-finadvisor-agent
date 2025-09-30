@@ -1,3 +1,5 @@
+require "sidekiq/web"
+
 Rails.application.routes.draw do
   resources :embeddings, only: [:create] do
     collection { post :nearest }
@@ -9,5 +11,11 @@ Rails.application.routes.draw do
     get "/", to: "embeddings#index"
     resources :embeddings, only: [:index]
   end
+
+  if Rails.env.development?
+    mount Sidekiq::Web => "/sidekiq"
+  end
+
+  get "/healthz", to: "health#show"
   root to: "ui/embeddings#index"
 end
