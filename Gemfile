@@ -23,8 +23,9 @@ gem "omniauth-google-oauth2"
 
 # Frontend
 gem "hotwire-rails"        # Turbo + Stimulus
-gem "tailwindcss-rails"    # TailwindCSS integration
-gem "sprockets-rails"      # Asset pipeline for app/assets
+ gem "tailwindcss-rails"    # TailwindCSS integration
+ gem "sprockets-rails"      # Asset pipeline for app/assets
+ gem "importmap-rails"      # Importmap for JS (javascript_importmap_tags)
 
 # Utilities
 gem "bcrypt", "~> 3.1.7"   # Local user authentication (optional)

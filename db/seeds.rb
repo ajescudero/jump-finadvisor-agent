@@ -1,7 +1,24 @@
-# This file should contain all the record creation needed to seed the database with its default values.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
-#
-# Examples:
-#
-#   movies = Movie.create([{ name: "Star Wars" }, { name: "Lord of the Rings" }])
-#   Character.create(name: "Luke", movie: movies.first)
+# Demo seeds for quick testing
+
+u = User.find_or_create_by!(email: ENV.fetch("DEMO_USER_EMAIL", "dev@local.test"))
+
+if Embedding.where(user: u).count == 0
+  samples = [
+    { kind: "note", ref_id: "sara-1", text: "Sara loves baseball and is interested in college savings." },
+    { kind: "note", ref_id: "greg-1", text: "Greg wants to sell AAPL to rebalance his portfolio." },
+    { kind: "message", ref_id: "team-1", text: "Quarterly All Team Meeting scheduled for Thursday at noon." }
+  ]
+
+  samples.each do |s|
+    Embedding.create!(
+      user: u,
+      kind: s[:kind],
+      ref_id: s[:ref_id],
+      chunk: s[:text],
+      embedding: EmbeddingProvider.embed_text(s[:text])
+    )
+  end
+  puts "Seeded #{samples.size} embeddings for user ##{u.id}"
+else
+  puts "Embeddings already present for user ##{u.id}"
+end

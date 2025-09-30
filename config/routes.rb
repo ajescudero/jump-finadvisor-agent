@@ -4,4 +4,10 @@ Rails.application.routes.draw do
   end
   resources :instructions, only: [:create, :update]
   resources :tasks, only: [:create, :update, :show, :index]
+
+  namespace :ui do
+    get "/", to: "embeddings#index"
+    resources :embeddings, only: [:index]
+  end
+  root to: "ui/embeddings#index"
 end
